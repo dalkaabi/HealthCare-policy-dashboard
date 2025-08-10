@@ -17,41 +17,41 @@ st.set_page_config(
 )
 
 # Custom CSS
-# st.markdown("""
-# <style>
-#     .main-header {
-#         font-size: 2.5rem;
-#         color: #1f77b4;
-#         text-align: center;
-#         margin-bottom: 2rem;
-#     }
-#     .sub-header {
-#         font-size: 1.5rem;
-#         color: #2c3e50;
-#         margin-bottom: 1rem;
-#     }
-#     .metric-container {
-#         background-color: #f8f9fa;
-#         padding: 1rem;
-#         border-radius: 0.5rem;
-#         border-left: 4px solid #1f77b4;
-#     }
-#     .policy-box {
-#         background-color: #e8f4f8;
-#         padding: 1.5rem;
-#         border-radius: 0.5rem;
-#         border-left: 4px solid #17a2b8;
-#         margin: 1rem 0;
-#     }
-#     .airline-highlight {
-#         background-color: #fff3cd;
-#         padding: 0.5rem;
-#         border-radius: 0.25rem;
-#         border-left: 3px solid #ffc107;
-#         margin: 0.5rem 0;
-#     }
-# </style>
-# """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+    }
+    .metric-container {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #1f77b4;
+    }
+    .policy-box {
+        background-color: #e8f4f8;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #17a2b8;
+        margin: 1rem 0;
+    }
+    .airline-highlight {
+        background-color: #fff3cd;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        border-left: 3px solid #ffc107;
+        margin: 0.5rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Load airline data
 @st.cache_data
@@ -92,6 +92,74 @@ def load_airline_data():
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
 
+# Calculate key market statistics
+@st.cache_data
+def calculate_market_stats(df):
+    """Calculate real market statistics from the data"""
+    if df.empty:
+        return {}
+    
+    stats = {}
+    
+    # Market share calculation
+    airline_counts = df['airline'].value_counts()
+    total_flights = len(df)
+    market_share = (airline_counts / total_flights * 100).round(1)
+    
+    # Top 3 concentration
+    top3_concentration = market_share.head(3).sum()
+    
+    # HHI calculation for routes
+    route_hhi = []
+    for route in df['route'].unique():
+        route_data = df[df['route'] == route]
+        airline_shares = route_data['airline'].value_counts(normalize=True)
+        hhi = (airline_shares ** 2).sum() * 10000
+        route_hhi.append({
+            'route': route,
+            'hhi': hhi,
+            'flights': len(route_data),
+            'airlines': len(airline_shares)
+        })
+    
+    # Route concentration analysis
+    high_concentration = len([r for r in route_hhi if r['hhi'] > 2500])
+    total_routes = len(route_hhi)
+    avg_hhi = np.mean([r['hhi'] for r in route_hhi])
+    
+    # Pricing statistics
+    price_stats = {
+        'min': df['price'].min(),
+        'max': df['price'].max(),
+        'mean': df['price'].mean(),
+        'std': df['price'].std()
+    }
+    
+    # Class analysis
+    economy_pct = (df['class'] == 'Economy').mean() * 100
+    business_pct = (df['class'] == 'Business').mean() * 100
+    
+    # Direct flights
+    direct_flights_pct = (df['stops'] == 'zero').mean() * 100
+    
+    # Booking window pricing
+    last_week = df[df['days_left'] <= 7]['price'].mean() if len(df[df['days_left'] <= 7]) > 0 else 0
+    early_bird = df[df['days_left'] > 35]['price'].mean() if len(df[df['days_left'] > 35]) > 0 else 0
+    price_premium = ((last_week - early_bird) / early_bird * 100) if early_bird > 0 else 0
+    
+    # Top routes by volume
+    route_volumes = df['route'].value_counts().head(5)
+    
+    stats = {
+        'total_flights': total_flights,
+        'total_routes': total_routes,
+        'market_share': market_share.to_dict(),
+        'top3_concentration': top3_concentration,
+        'high_concentration_routes': high_concentration,
+        'high_concentration_pct': (high_concentration / total_routes * 100),
+        'avg_hhi': avg_hhi,
+        'price
+
 # Load data
 df = load_airline_data()
 
@@ -117,7 +185,7 @@ selected_airlines = st.sidebar.multiselect(
 selected_routes = st.sidebar.multiselect(
     "Select Routes:",
     options=sorted(df['route'].unique()),
-    default=sorted(df['route'].unique())[:10]  
+    default=sorted(df['route'].unique())[:10]  # Top 10 routes
 )
 
 # Class filter
@@ -145,16 +213,18 @@ filtered_df = df[
 ]
 
 # Key Metrics Row
-if not filtered_df.empty:
+if not filtered_df.empty and market_stats:
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         avg_price = filtered_df['price'].mean()
-        st.metric("Average Fare", f"₹{avg_price:,.0f}", f"₹{avg_price-df['price'].mean():,.0f} vs overall")
+        baseline_price = market_stats['price_stats']['mean']
+        st.metric("Average Fare", f"₹{avg_price:,.0f}", f"₹{avg_price-baseline_price:,.0f} vs overall")
     
     with col2:
         avg_duration = filtered_df['duration_hours'].mean()
-        st.metric("Average Duration", f"{avg_duration:.1f}h", f"{avg_duration-df['duration_hours'].mean():.1f}h vs overall")
+        baseline_duration = df['duration_hours'].mean()
+        st.metric("Average Duration", f"{avg_duration:.1f}h", f"{avg_duration-baseline_duration:.1f}h vs overall")
     
     with col3:
         total_flights = len(filtered_df)
@@ -162,11 +232,36 @@ if not filtered_df.empty:
     
     with col4:
         direct_flights_pct = (filtered_df['stops'] == 'zero').mean() * 100
-        st.metric("Direct Flights", f"{direct_flights_pct:.1f}%", f"{direct_flights_pct-((df['stops'] == 'zero').mean() * 100):.1f}% vs overall")
+        baseline_direct = market_stats['direct_flights_pct']
+        st.metric("Direct Flights", f"{direct_flights_pct:.1f}%", f"{direct_flights_pct-baseline_direct:.1f}% vs overall")
     
     with col5:
         avg_booking_window = filtered_df['days_left'].mean()
-        st.metric("Avg Booking Window", f"{avg_booking_window:.0f} days", f"{avg_booking_window-df['days_left'].mean():.0f} vs overall")
+        baseline_booking = df['days_left'].mean()
+        st.metric("Avg Booking Window", f"{avg_booking_window:.0f} days", f"{avg_booking_window-baseline_booking:.0f} vs overall")
+
+# Display key market insights
+if market_stats:
+    st.markdown("### 📊 Market Overview")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.info(f"""
+        **Market Leader:** {max(market_stats['market_share'], key=market_stats['market_share'].get)} 
+        ({market_stats['market_share'][max(market_stats['market_share'], key=market_stats['market_share'].get)]}%)
+        """)
+    
+    with col2:
+        st.warning(f"""
+        **High Concentration Routes:** {market_stats['high_concentration_routes']} of {market_stats['total_routes']} 
+        ({market_stats['high_concentration_pct']}%)
+        """)
+    
+    with col3:
+        st.error(f"""
+        **Avg HHI Index:** {market_stats['avg_hhi']:.0f} 
+        (Above 2500 = High Concentration)
+        """)
 
 # Visualization Section
 st.markdown("---")
@@ -333,7 +428,7 @@ with tab3:
     with col2:
         # Price vs booking window
         fig_price_booking = px.scatter(
-            filtered_df.sample(min(5000, len(filtered_df))),
+            filtered_df.sample(min(5000, len(filtered_df))),  # Sample for performance
             x='days_left',
             y='price',
             color='airline',
@@ -421,11 +516,12 @@ with tab4:
     # Market concentration analysis
     st.markdown("#### Market Concentration by Route")
     
+    # Calculate Herfindahl-Hirschman Index (HHI) for each route
     route_hhi = []
     for route in filtered_df['route'].unique():
         route_data = filtered_df[filtered_df['route'] == route]
         airline_shares = route_data['airline'].value_counts(normalize=True)
-        hhi = (airline_shares ** 2).sum() * 10000 
+        hhi = (airline_shares ** 2).sum() * 10000  # Multiply by 10000 for standard HHI scale
         route_hhi.append({'route': route, 'HHI': hhi, 'flights': len(route_data)})
     
     hhi_df = pd.DataFrame(route_hhi)
@@ -452,84 +548,79 @@ with tab4:
 st.markdown("---")
 st.markdown('<h2 class="sub-header">📋 Policy Recommendations</h2>', unsafe_allow_html=True)
 
-if not filtered_df.empty:
-    # Calculate key policy metrics
-    avg_hhi = pd.DataFrame(route_hhi)['HHI'].mean()
-    high_price_routes = len(route_analysis[route_analysis['Avg Price'] > route_analysis['Avg Price'].quantile(0.8)])
-    monopoly_routes = len([r for r in route_hhi if r['HHI'] > 2500])
+if not filtered_df.empty and market_stats:
+    # Calculate key policy metrics using real data
+    high_concentration_routes = market_stats['high_concentration_routes']
+    total_routes = market_stats['total_routes']
+    avg_hhi = market_stats['avg_hhi']
+    top3_concentration = market_stats['top3_concentration']
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("""
+        st.markdown(f"""
         <div class="policy-box">
         <h4>🎯 Immediate Policy Actions</h4>
         <ul>
-        <li><strong>Route Development:</strong> Incentivize new entrants on high-concentration routes</li>
-        <li><strong>Pricing Regulation:</strong> Monitor routes with HHI > 2500 for price manipulation</li>
-        <li><strong>Slot Allocation:</strong> Ensure fair distribution of airport slots among carriers</li>
-        <li><strong>Consumer Protection:</strong> Implement transparent pricing and booking policies</li>
+        <li><strong>Route Development:</strong> {high_concentration_routes} routes need competitive intervention (HHI > 2500)</li>
+        <li><strong>Market Concentration:</strong> Top 3 airlines control {top3_concentration}% - monitor for anti-competitive practices</li>
+        <li><strong>Slot Allocation:</strong> Redistribute slots on high-concentration routes to new entrants</li>
+        <li><strong>Price Transparency:</strong> Mandate fare disclosure on routes with average HHI of {avg_hhi:.0f}</li>
         </ul>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div class="policy-box">
         <h4>📊 Data-Driven Insights</h4>
         <ul>
-        <li><strong>Market Concentration:</strong> Average HHI of {:.0f} indicates moderate concentration</li>
-        <li><strong>Route Competition:</strong> {} routes show high concentration levels</li>
-        <li><strong>Price Efficiency:</strong> Significant price variance across similar routes</li>
-        <li><strong>Booking Patterns:</strong> Early booking incentives vary significantly by airline</li>
+        <li><strong>Market Structure:</strong> {market_stats['high_concentration_pct']}% of routes highly concentrated</li>
+        <li><strong>Pricing Efficiency:</strong> {market_stats['business_premium']}% business class premium indicates limited competition</li>
+        <li><strong>Route Access:</strong> {market_stats['direct_flights_pct']}% direct flights suggest capacity constraints</li>
+        <li><strong>Booking Patterns:</strong> {market_stats['price_premium']}% last-minute premium shows dynamic pricing issues</li>
         </ul>
         </div>
-        """.format(avg_hhi, monopoly_routes), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     # Critical routes needing attention
     st.markdown("#### 🚨 Routes Requiring Regulatory Attention")
     
-    critical_routes = []
-    for route_info in route_hhi:
-        if route_info['HHI'] > 2500: 
-            route_data = route_analysis.loc[route_info['route']]
-            critical_routes.append({
-                'Route': route_info['route'],
-                'HHI': route_info['HHI'],
-                'Airlines': int(route_data['Airlines Serving']),
-                'Avg Price': f"₹{route_data['Avg Price']:,.0f}",
-                'Market Structure': 'Highly Concentrated'
-            })
+    # Get routes with highest HHI
+    if 'route_hhi_data' in market_stats:
+        high_hhi_routes = [r for r in market_stats['route_hhi_data'] if r['hhi'] > 3000]
+        
+        if high_hhi_routes:
+            # Sort by HHI and take top 10
+            high_hhi_routes = sorted(high_hhi_routes, key=lambda x: x['hhi'], reverse=True)[:10]
+            
+            critical_df = pd.DataFrame([{
+                'Route': route['route'],
+                'HHI Index': f"{route['hhi']:.0f}",
+                'Airlines Serving': route['airlines'],
+                'Total Flights': f"{route['flights']:,}",
+                'Market Structure': 'Highly Concentrated' if route['hhi'] > 2500 else 'Moderately Concentrated'
+            } for route in high_hhi_routes])
+            
+            st.dataframe(critical_df, use_container_width=True)
+        else:
+            st.success("✅ No routes show extremely high concentration levels (HHI > 3000)")
     
-    if critical_routes:
-        critical_df = pd.DataFrame(critical_routes)
-        st.dataframe(critical_df, use_container_width=True)
-    else:
-        st.success("✅ No routes show concerning levels of market concentration")
-    
-    # Airline-specific recommendations
+    # Market share analysis for policy
     st.markdown("#### ✈️ Airline-Specific Policy Considerations")
     
-    airline_summary = filtered_df.groupby('airline').agg({
-        'route': 'nunique',
-        'price': 'mean',
-        'flight': 'count'
-    }).round(0)
-    airline_summary.columns = ['Routes Served', 'Avg Price', 'Total Flights']
-    airline_summary['Market Share %'] = (airline_summary['Total Flights'] / airline_summary['Total Flights'].sum() * 100).round(1)
-    
-    for airline in airline_summary.index:
-        market_share = airline_summary.loc[airline, 'Market Share %']
-        if market_share > 25:
+    market_share_data = market_stats['market_share']
+    for airline, share in market_share_data.items():
+        if share > 20:
             st.markdown(f"""
             <div class="airline-highlight">
-            <strong>{airline}:</strong> Market leader with {market_share}% share - Monitor for anti-competitive practices
+            <strong>{airline}:</strong> Dominant market position with {share}% share - Requires competition oversight
             </div>
             """, unsafe_allow_html=True)
-        elif market_share < 5:
+        elif share < 5:
             st.markdown(f"""
             <div class="airline-highlight">
-            <strong>{airline}:</strong> Small player with {market_share}% share - Consider growth incentives
+            <strong>{airline}:</strong> Small market presence with {share}% share - Consider growth incentives
             </div>
             """, unsafe_allow_html=True)
 
