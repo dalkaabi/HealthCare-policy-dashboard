@@ -150,18 +150,39 @@ def calculate_market_stats(df):
     # Top routes by volume
     route_volumes = df['route'].value_counts().head(5)
     
+    # Business class premium calculation
+    economy_avg = df[df['class'] == 'Economy']['price'].mean()
+    business_avg = df[df['class'] == 'Business']['price'].mean() if len(df[df['class'] == 'Business']) > 0 else 0
+    business_premium = ((business_avg - economy_avg) / economy_avg * 100) if business_avg > 0 else 0
+    
     stats = {
         'total_flights': total_flights,
         'total_routes': total_routes,
         'market_share': market_share.to_dict(),
-        'top3_concentration': top3_concentration,
+        'top3_concentration': round(top3_concentration, 1),
         'high_concentration_routes': high_concentration,
-        'high_concentration_pct': (high_concentration / total_routes * 100),
-        'avg_hhi': avg_hhi,
-        'price
+        'high_concentration_pct': round(high_concentration / total_routes * 100, 1),
+        'avg_hhi': round(avg_hhi, 0),
+        'price_stats': price_stats,
+        'economy_pct': round(economy_pct, 1),
+        'business_pct': round(business_pct, 1),
+        'direct_flights_pct': round(direct_flights_pct, 1),
+        'price_premium': round(price_premium, 1),
+        'top_routes': route_volumes.to_dict(),
+        'business_premium': round(business_premium, 0),
+        'route_hhi_data': route_hhi
+    }
+    
+    return stats
 
 # Load data
 df = load_airline_data()
+
+# Calculate market statistics
+if not df.empty:
+    market_stats = calculate_market_stats(df)
+else:
+    market_stats = {}
 
 if df.empty:
     st.error("Unable to load airline data. Please check the file.")
@@ -652,13 +673,14 @@ with col2:
 
 with col3:
     if st.button("Download Competition Metrics"):
-        hhi_csv = pd.DataFrame(route_hhi).to_csv(index=False)
-        st.download_button(
-            label="Download HHI Data",
-            data=hhi_csv,
-            file_name=f"market_concentration_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv"
-        )
+        if market_stats and 'route_hhi_data' in market_stats:
+            hhi_csv = pd.DataFrame(market_stats['route_hhi_data']).to_csv(index=False)
+            st.download_button(
+                label="Download HHI Data",
+                data=hhi_csv,
+                file_name=f"market_concentration_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
 
 # Footer
 st.markdown("---")
