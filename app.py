@@ -17,41 +17,41 @@ st.set_page_config(
 )
 
 # Custom CSS
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #2c3e50;
-        margin-bottom: 1rem;
-    }
-    .metric-container {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #1f77b4;
-    }
-    .policy-box {
-        background-color: #e8f4f8;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #17a2b8;
-        margin: 1rem 0;
-    }
-    .airline-highlight {
-        background-color: #fff3cd;
-        padding: 0.5rem;
-        border-radius: 0.25rem;
-        border-left: 3px solid #ffc107;
-        margin: 0.5rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+# st.markdown("""
+# <style>
+#     .main-header {
+#         font-size: 2.5rem;
+#         color: #1f77b4;
+#         text-align: center;
+#         margin-bottom: 2rem;
+#     }
+#     .sub-header {
+#         font-size: 1.5rem;
+#         color: #2c3e50;
+#         margin-bottom: 1rem;
+#     }
+#     .metric-container {
+#         background-color: #f8f9fa;
+#         padding: 1rem;
+#         border-radius: 0.5rem;
+#         border-left: 4px solid #1f77b4;
+#     }
+#     .policy-box {
+#         background-color: #e8f4f8;
+#         padding: 1.5rem;
+#         border-radius: 0.5rem;
+#         border-left: 4px solid #17a2b8;
+#         margin: 1rem 0;
+#     }
+#     .airline-highlight {
+#         background-color: #fff3cd;
+#         padding: 0.5rem;
+#         border-radius: 0.25rem;
+#         border-left: 3px solid #ffc107;
+#         margin: 0.5rem 0;
+#     }
+# </style>
+# """, unsafe_allow_html=True)
 
 # Load airline data
 @st.cache_data
